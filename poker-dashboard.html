@@ -160,32 +160,25 @@ let mchart      = null;
 let hiddenLines = new Set();
 
 // ===================== Data Load =====================
-function loadData() {
+async function loadData() {
   document.getElementById('hbadge').textContent = '読込中…';
   document.getElementById('lboard').innerHTML   = '<div class="loader"><div class="spinner"></div></div>';
   document.getElementById('histList').innerHTML  = '<div class="loader"><div class="spinner"></div></div>';
 
-  const cb = 'gviz' + Date.now();
-  let timer = setTimeout(() => {
-    showErr('タイムアウト。スプシが「ウェブに公開」されているか確認してください。');
-  }, 12000);
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}&headers=1`;
 
-  window[cb] = function(res) {
-    clearTimeout(timer);
-    delete window[cb];
-    try {
-      allSessions = parseGviz(res);
-      onDataLoaded();
-    } catch(e) {
-      showErr('データ解析エラー: ' + e.message);
-    }
-  };
-
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:${cb}&sheet=${encodeURIComponent(SHEET_NAME)}&headers=1`;
-  const el  = document.createElement('script');
-  el.onerror = () => { clearTimeout(timer); showErr('読込失敗。スプシの共有設定を確認してください。'); };
-  el.src = url;
-  document.head.appendChild(el);
+  try {
+    const res  = await fetch(url);
+    const text = await res.text();
+    // gviz レスポンスは /*O_o*/\ngoogle.visualization.Query.setResponse({...}); の形式
+    const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
+    if (!match) throw new Error('レスポンス形式が不正です');
+    const data = JSON.parse(match[1]);
+    allSessions = parseGviz(data);
+    onDataLoaded();
+  } catch(e) {
+    showErr('読込失敗: ' + e.message + '<br><br><b>解決方法:</b><br>スプシ → ファイル → 共有 → ウェブに公開 → 「フォームの回答 1」シートを選択 → 公開');
+  }
 }
 
 function showErr(msg) {
