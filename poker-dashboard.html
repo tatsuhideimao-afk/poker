@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🃏 ポーカー収支</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root{--bg:#0f172a;--card:#1e293b;--card2:#263048;--border:#334155;--text:#f1f5f9;--muted:#94a3b8;--accent:#38bdf8;--green:#22c55e;--red:#ef4444}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:80px}
+
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:13px 16px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between}
+    .header h1{font-size:17px;font-weight:700}
+    .hbadge{font-size:11px;background:var(--card2);border:1px solid var(--border);padding:3px 10px;border-radius:20px;color:var(--muted)}
+
+    .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:49px;z-index:99}
+    .tab{flex:1;padding:10px 4px;text-align:center;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent}
+    .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+    .section{display:none;padding:12px}
+    .section.active{display:block}
+
+    .card{background:var(--card);border-radius:12px;border:1px solid var(--border);padding:13px;margin-bottom:11px}
+    .card-title{font-size:11px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+
+    /* フィルターボタン */
+    .filter-row{display:flex;gap:6px;margin-bottom:11px;flex-wrap:wrap}
+    .fbt{padding:7px 14px;border:1px solid var(--border);border-radius:20px;background:var(--card2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer}
+    .fbt.active{background:var(--accent);color:#0f172a;border-color:var(--accent)}
+    .month-row{margin-bottom:11px}
+    select{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:14px;width:100%;outline:none}
+    select option{background:var(--bg)}
+
+    /* ランキング */
+    .lb-item{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--border)}
+    .lb-item:last-child{border-bottom:none}
+    .rank{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+    .r1{background:#f59e0b22;color:#f59e0b}.r2{background:#94a3b822;color:#94a3b8}.r3{background:#cd7c2a22;color:#cd7c2a}.rn{background:var(--card2);color:var(--muted)}
+    .lb-info{flex:1;min-width:0}
+    .lb-name{font-size:15px;font-weight:700}
+    .lb-sub{font-size:11px;color:var(--muted);margin-top:2px}
+    .lb-right{text-align:right;flex-shrink:0}
+    .lb-chip{font-size:17px;font-weight:800}
+    .lb-meta{font-size:10px;color:var(--muted);margin-top:1px}
+
+    /* チャート */
+    .chart-wrap{position:relative;height:200px}
+    .legend{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px}
+    .leg-item{display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;transition:opacity .2s}
+    .leg-item.off{opacity:.3}
+    .leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+    /* 履歴 */
+    .sess-card{background:var(--card2);border-radius:10px;padding:11px;margin-bottom:9px}
+    .sess-head{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:7px}
+    .sess-row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px;border-bottom:1px solid var(--border)}
+    .sess-row:last-child{border-bottom:none}
+
+    /* 記録ボタン */
+    .rec-btn{display:block;width:100%;padding:17px;background:var(--accent);color:#0f172a;font-size:16px;font-weight:800;border:none;border-radius:12px;cursor:pointer;text-align:center;text-decoration:none;margin-bottom:12px}
+    .rec-btn:active{opacity:.8}
+    .reload-btn{background:var(--card2);border:1px solid var(--border);color:var(--muted);padding:8px;border-radius:8px;font-size:13px;cursor:pointer;width:100%;margin-top:8px}
+
+    .loader{display:flex;justify-content:center;padding:36px}
+    .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .empty{text-align:center;padding:36px 20px;color:var(--muted);font-size:13px}
+    .err-box{background:#450a0a;border:1px solid #7f1d1d;border-radius:10px;padding:14px;font-size:12px;line-height:1.7;color:#fca5a5;margin-bottom:11px}
+
+    .pos{color:var(--green)}.neg{color:var(--red)}.neu{color:var(--muted)}
+    .label-tag{font-size:11px;background:var(--card2);border:1px solid var(--border);padding:2px 8px;border-radius:12px;color:var(--muted);margin-left:6px}
+  </style>
+</head>
+<body>
+
+<script>
+// ============================================================
+// CONFIG（ここだけ変更すればOK）
+// ============================================================
+const SHEET_ID   = '1MoDvourPfkkerSLS780RII6Nb4vyd_nN-goZhQAypmo';
+const SHEET_NAME = 'フォームの回答 1';
+const MEMBERS    = ['今尾', '大迫', '藤原', '今伊'];
+const FORM_URL   = 'https://forms.gle/XieJJKfRBpdq4LH99';
+const COLORS     = ['#38bdf8','#22c55e','#f59e0b','#a78bfa'];
+// フォーム回答列順（0始まり）: A=タイムスタンプ, B=開催日, C〜=各メンバー
+const COL_DATE   = 1;
+const COL_START  = 2;
+// ============================================================
+</script>
+
+<div class="header">
+  <h1>🃏 ポーカー収支</h1>
+  <div class="hbadge" id="hbadge">読込中…</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="goTab('rank')">🏆 ランキング</div>
+  <div class="tab" onclick="goTab('chart')">📈 グラフ</div>
+  <div class="tab" onclick="goTab('hist')">📋 履歴</div>
+  <div class="tab" onclick="goTab('rec')">➕ 記録</div>
+</div>
+
+<!-- ランキング -->
+<div class="section active" id="s-rank">
+  <div class="filter-row">
+    <button class="fbt active" onclick="setFilter('recent',this)">直近</button>
+    <button class="fbt" onclick="setFilter('month',this)">今月</button>
+    <button class="fbt" onclick="setFilter('select',this)">月別</button>
+    <button class="fbt" onclick="setFilter('all',this)">累計</button>
+  </div>
+  <div class="month-row" id="monthRow" style="display:none">
+    <select id="monthPick" onchange="renderRank()"></select>
+  </div>
+  <div id="rankLabel" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+  <div class="card">
+    <div id="lboard"><div class="loader"><div class="spinner"></div></div></div>
+  </div>
+  <button class="reload-btn" onclick="loadData()">🔄 データを再読込</button>
+</div>
+
+<!-- グラフ -->
+<div class="section" id="s-chart">
+  <div class="card">
+    <div class="card-title">累積チップ推移（全期間）</div>
+    <div class="legend" id="legend"></div>
+    <div class="chart-wrap"><canvas id="mchart"></canvas></div>
+  </div>
+</div>
+
+<!-- 履歴 -->
+<div class="section" id="s-hist">
+  <div id="histList"><div class="loader"><div class="spinner"></div></div></div>
+</div>
+
+<!-- 記録 -->
+<div class="section" id="s-rec">
+  <div class="card">
+    <div class="card-title">新しいセッションを記録</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.7">フォームを開いて全員のチップ収支を入力・送信してください。送信するとスプシに自動で記録されます。</p>
+    <a class="rec-btn" id="formBtn" href="#" target="_blank">📝 フォームを開いて記録する</a>
+    <p style="font-size:11px;color:var(--muted);text-align:center">記録後は「ランキング」の「🔄 データを再読込」を押してください</p>
+  </div>
+  <div class="card" style="font-size:12px;color:var(--muted);line-height:1.9">
+    <div class="card-title">入力のルール</div>
+    勝ち（プラス）: <span style="color:var(--green)">5000</span> と入力<br>
+    負け（マイナス）: <span style="color:var(--red)">-3000</span> と入力<br>
+    不参加: 空白のままでOK
+  </div>
+</div>
+
+<script>
+document.getElementById('formBtn').href = FORM_URL;
+
+// ===================== State =====================
+let allSessions = [];
+let curFilter   = 'recent';
+let curMonth    = '';
+let mchart      = null;
+let hiddenLines = new Set();
+
+// ===================== Data Load =====================
+function loadData() {
+  document.getElementById('hbadge').textContent = '読込中…';
+  document.getElementById('lboard').innerHTML   = '<div class="loader"><div class="spinner"></div></div>';
+  document.getElementById('histList').innerHTML  = '<div class="loader"><div class="spinner"></div></div>';
+
+  const cb = 'gviz' + Date.now();
+  let timer = setTimeout(() => {
+    showErr('タイムアウト。スプシが「ウェブに公開」されているか確認してください。');
+  }, 12000);
+
+  window[cb] = function(res) {
+    clearTimeout(timer);
+    delete window[cb];
+    try {
+      allSessions = parseGviz(res);
+      onDataLoaded();
+    } catch(e) {
+      showErr('データ解析エラー: ' + e.message);
+    }
+  };
+
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:${cb}&sheet=${encodeURIComponent(SHEET_NAME)}&headers=1`;
+  const el  = document.createElement('script');
+  el.onerror = () => { clearTimeout(timer); showErr('読込失敗。スプシの共有設定を確認してください。'); };
+  el.src = url;
+  document.head.appendChild(el);
+}
+
+function showErr(msg) {
+  document.getElementById('lboard').innerHTML =
+    `<div class="err-box">⚠️ ${msg}<br><br>
+     <b>解決方法:</b><br>
+     スプシを開く → ファイル → 共有 → ウェブに公開 → 「公開」をクリック</div>`;
+  document.getElementById('hbadge').textContent = 'エラー';
+}
+
+// ===================== Parse =====================
+function parseGviz(res) {
+  const rows = (res.table && res.table.rows) || [];
+  const result = [];
+
+  rows.forEach(row => {
+    if (!row.c || !row.c[COL_DATE]) return;
+    const dc = row.c[COL_DATE];
+    if (!dc || (dc.v === null && !dc.f)) return;
+
+    // 日付を yyyy/MM/dd 形式に
+    let date = dc.f || String(dc.v || '');
+    if (date.match(/^Date\(/)) {
+      const m = date.match(/Date\((\d+),(\d+),(\d+)\)/);
+      if (m) date = `${m[1]}/${String(+m[2]+1).padStart(2,'0')}/${String(+m[3]).padStart(2,'0')}`;
+    }
+    date = date.slice(0,10).replace(/-/g,'/');
+    if (!date.match(/^\d{4}\/\d{2}\/\d{2}$/)) return;
+
+    const chips = {};
+    MEMBERS.forEach((name, i) => {
+      const c = row.c[COL_START + i];
+      if (c && c.v !== null && c.v !== '') {
+        const n = typeof c.v === 'number' ? c.v : Number(String(c.v).replace(/[,，　]/g,''));
+        if (!isNaN(n)) chips[name] = n;
+      }
+    });
+
+    if (Object.keys(chips).length > 0) result.push({ date, chips });
+  });
+
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ===================== After Load =====================
+function onDataLoaded() {
+  const n = allSessions.length;
+  document.getElementById('hbadge').textContent = n + 'セッション';
+  buildMonthOptions();
+  renderRank();
+  renderChart();
+  renderHist();
+}
+
+function buildMonthOptions() {
+  const months = [...new Set(allSessions.map(s => s.date.slice(0,7)))].sort().reverse();
+  const sel = document.getElementById('monthPick');
+  sel.innerHTML = months.map(m => `<option value="${m}">${m.replace('/','\u5e74')}月</option>`).join('');
+  curMonth = months[0] || '';
+}
+
+// ===================== Filter =====================
+function setFilter(f, btn) {
+  curFilter = f;
+  document.querySelectorAll('.fbt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('monthRow').style.display = f === 'select' ? 'block' : 'none';
+  renderRank();
+}
+
+function filteredSessions() {
+  if (curFilter === 'recent') {
+    if (!allSessions.length) return [];
+    const last = allSessions[allSessions.length - 1].date;
+    return allSessions.filter(s => s.date === last);
+  }
+  if (curFilter === 'month') {
+    const ym = today().slice(0,7);
+    return allSessions.filter(s => s.date.slice(0,7) === ym);
+  }
+  if (curFilter === 'select') {
+    curMonth = document.getElementById('monthPick').value;
+    return allSessions.filter(s => s.date.slice(0,7) === curMonth);
+  }
+  return allSessions; // 累計
+}
+
+function filterLabel() {
+  if (curFilter === 'recent') {
+    const last = allSessions.length ? allSessions[allSessions.length-1].date : '';
+    return last ? `直近セッション (${last})` : '直近';
+  }
+  if (curFilter === 'month') return today().slice(0,7).replace('/','\u5e74') + '月';
+  if (curFilter === 'select') return (curMonth||'').replace('/','\u5e74') + '月（月別）';
+  return '累計（全期間）';
+}
+
+// ===================== Ranking =====================
+function renderRank() {
+  const sessions = filteredSessions();
+  document.getElementById('rankLabel').textContent = filterLabel();
+  const el = document.getElementById('lboard');
+
+  if (!sessions.length) {
+    el.innerHTML = '<div class="empty">この期間のデータがありません</div>';
+    return;
+  }
+
+  // 集計
+  const stats = {};
+  MEMBERS.forEach(n => stats[n] = { total:0, count:0, wins:0, losses:0 });
+  sessions.forEach(s => {
+    Object.entries(s.chips).forEach(([name, chip]) => {
+      if (!stats[name]) return;
+      stats[name].total  += chip;
+      stats[name].count++;
+      if (chip > 0) stats[name].wins++;
+      else if (chip < 0) stats[name].losses++;
+    });
+  });
+
+  const ranked = MEMBERS
+    .filter(n => stats[n].count > 0)
+    .map(n => ({ name:n, ...stats[n] }))
+    .sort((a, b) => b.total - a.total);
+
+  if (!ranked.length) { el.innerHTML = '<div class="empty">参加データなし</div>'; return; }
+
+  el.innerHTML = ranked.map((m, i) => {
+    const wr    = m.count ? Math.round(m.wins / m.count * 100) : 0;
+    const avg   = m.count ? Math.round(m.total / m.count) : 0;
+    const draws = m.count - m.wins - m.losses;
+    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+    const rc    = i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+    const col   = COLORS[MEMBERS.indexOf(m.name) % COLORS.length];
+    const chipCls = m.total>0?'pos':m.total<0?'neg':'neu';
+    return `
+      <div class="lb-item">
+        <div class="rank ${rc}">${medal}</div>
+        <div class="lb-info">
+          <div class="lb-name" style="color:${col}">${m.name}</div>
+          <div class="lb-sub">
+            ${m.count}回参加 &nbsp;
+            <span style="color:var(--green)">${m.wins}勝</span>
+            <span style="color:var(--red)">${m.losses}敗</span>
+            ${draws?`<span style="color:var(--muted)">${draws}分</span>`:''}
+            &nbsp; 勝率<b>${wr}%</b>
+          </div>
+        </div>
+        <div class="lb-right">
+          <div class="lb-chip ${chipCls}">${fmt(m.total)}</div>
+          <div class="lb-meta">${m.count>1?fmt(avg)+'/回':''}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ===================== Chart =====================
+function renderChart() {
+  const ctx = document.getElementById('mchart').getContext('2d');
+  if (mchart) mchart.destroy();
+  if (!allSessions.length) return;
+
+  const labels = allSessions.map(s => s.date.slice(5));
+  const datasets = MEMBERS.map((name, i) => {
+    let cum = 0;
+    return {
+      label: name,
+      data:  allSessions.map(s => { cum += (s.chips[name]||0); return cum; }),
+      borderColor: COLORS[i],
+      backgroundColor: COLORS[i]+'18',
+      borderWidth: 2.5,
+      pointRadius: allSessions.length<=15?4:2,
+      pointBackgroundColor: COLORS[i],
+      tension: 0.3, fill: false,
+      hidden: hiddenLines.has(name)
+    };
+  });
+
+  mchart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}
+      },
+      scales:{
+        x:{ticks:{color:'#94a3b8',maxTicksLimit:6,font:{size:10}},grid:{color:'#1e293b'}},
+        y:{ticks:{color:'#94a3b8',font:{size:10},callback:v=>Math.abs(v)>=10000?(v/10000).toFixed(0)+'万':v.toLocaleString('ja-JP')},grid:{color:'#263048'}}
+      }
+    }
+  });
+
+  document.getElementById('legend').innerHTML = MEMBERS.map((name,i)=>`
+    <div class="leg-item ${hiddenLines.has(name)?'off':''}" onclick="toggleLine('${name}',${i})">
+      <div class="leg-dot" style="background:${COLORS[i]}"></div><span>${name}</span>
+    </div>`).join('');
+}
+
+function toggleLine(name, i) {
+  hiddenLines.has(name)?hiddenLines.delete(name):hiddenLines.add(name);
+  mchart.data.datasets[i].hidden = hiddenLines.has(name);
+  mchart.update();
+  document.querySelectorAll('.leg-item')[i].classList.toggle('off', hiddenLines.has(name));
+}
+
+// ===================== History =====================
+function renderHist() {
+  const el = document.getElementById('histList');
+  if (!allSessions.length) { el.innerHTML='<div class="empty">まだ記録がありません</div>'; return; }
+  el.innerHTML = [...allSessions].reverse().map(s => {
+    const rows = Object.entries(s.chips).sort((a,b)=>b[1]-a[1]);
+    return `<div class="sess-card">
+      <div class="sess-head">📅 ${s.date}</div>
+      ${rows.map(([name,chip])=>`
+        <div class="sess-row">
+          <span style="color:var(--muted)">${name}</span>
+          <span style="font-weight:700" class="${chip>0?'pos':chip<0?'neg':'neu'}">${fmt(chip)}</span>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ===================== Tab =====================
+function goTab(t) {
+  const map={rank:'s-rank',chart:'s-chart',hist:'s-hist',rec:'s-rec'};
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['rank','chart','hist','rec'][i]===t));
+  document.querySelectorAll('.section').forEach(el=>el.classList.remove('active'));
+  document.getElementById(map[t]).classList.add('active');
+}
+
+// ===================== Utils =====================
+function fmt(n) {
+  const a = Math.abs(n).toLocaleString('ja-JP');
+  return n>0?`+${a}`:n<0?`−${a}`:'0';
+}
+function today() {
+  return new Date().toISOString().slice(0,10).replace(/-/g,'/');
+}
+
+// ===================== Init =====================
+loadData();
+</script>
+</body>
+</html>
