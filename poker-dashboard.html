@@ -78,14 +78,14 @@
 // ============================================================
 // CONFIG（ここだけ変更すればOK）
 // ============================================================
-const SHEET_ID   = '1RMnGwg26NWC2f2lqTEwNUwjyRpF6I4D_AJvmlhNQbel';
-const SHEET_NAME = 'フォームの回答 1';
-const MEMBERS    = ['今尾', '大迫', '藤原', '今伊'];
-const FORM_URL   = 'https://forms.gle/XieJJKfRBpdq4LH99';
-const COLORS     = ['#38bdf8','#22c55e','#f59e0b','#a78bfa'];
-// フォーム回答列順（0始まり）: A=タイムスタンプ, B=開催日, C〜=各メンバー
-const COL_DATE   = 1;
-const COL_START  = 2;
+// 公開済みCSV URL（ウェブに公開 → フォームの回答1シートのURL）
+const CSV_URL  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTtK8n4aqNRDXvU59cQHQRklfa_ZLs-OKWGC9svLjnSVELDh4CSYEexnIhfEWuH1czcHFbCpBDksKaM/pub?gid=68488119&single=true&output=csv';
+const MEMBERS  = ['今尾', '大迫', '藤原', '今伊'];
+const FORM_URL = 'https://forms.gle/XieJJKfRBpdq4LH99';
+const COLORS   = ['#38bdf8','#22c55e','#f59e0b','#a78bfa'];
+// CSV列順（0始まり）: A=タイムスタンプ, B=開催日, C〜=各メンバー
+const COL_DATE  = 1;
+const COL_START = 2;
 // ============================================================
 </script>
 
@@ -165,19 +165,14 @@ async function loadData() {
   document.getElementById('lboard').innerHTML   = '<div class="loader"><div class="spinner"></div></div>';
   document.getElementById('histList').innerHTML  = '<div class="loader"><div class="spinner"></div></div>';
 
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}&headers=1`;
-
   try {
-    const res  = await fetch(url);
+    const res  = await fetch(CSV_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    // gviz レスポンスは /*O_o*/\ngoogle.visualization.Query.setResponse({...}); の形式
-    const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
-    if (!match) throw new Error('レスポンス形式が不正です');
-    const data = JSON.parse(match[1]);
-    allSessions = parseGviz(data);
+    allSessions = parseCSV(text);
     onDataLoaded();
   } catch(e) {
-    showErr('読込失敗: ' + e.message + '<br><br><b>解決方法:</b><br>スプシ → ファイル → 共有 → ウェブに公開 → 「フォームの回答 1」シートを選択 → 公開');
+    showErr('読込失敗: ' + e.message);
   }
 }
 
@@ -189,38 +184,47 @@ function showErr(msg) {
   document.getElementById('hbadge').textContent = 'エラー';
 }
 
-// ===================== Parse =====================
-function parseGviz(res) {
-  const rows = (res.table && res.table.rows) || [];
-  const result = [];
+// ===================== Parse CSV =====================
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
 
-  rows.forEach(row => {
-    if (!row.c || !row.c[COL_DATE]) return;
-    const dc = row.c[COL_DATE];
-    if (!dc || (dc.v === null && !dc.f)) return;
+  const result = [];
+  // ヘッダー行をスキップして2行目から処理
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCSVLine(lines[i]);
+    if (!cols[COL_DATE]) continue;
 
     // 日付を yyyy/MM/dd 形式に
-    let date = dc.f || String(dc.v || '');
-    if (date.match(/^Date\(/)) {
-      const m = date.match(/Date\((\d+),(\d+),(\d+)\)/);
-      if (m) date = `${m[1]}/${String(+m[2]+1).padStart(2,'0')}/${String(+m[3]).padStart(2,'0')}`;
-    }
-    date = date.slice(0,10).replace(/-/g,'/');
-    if (!date.match(/^\d{4}\/\d{2}\/\d{2}$/)) return;
+    let date = cols[COL_DATE].trim().replace(/"/g, '').slice(0, 10).replace(/-/g, '/');
+    if (!date.match(/^\d{4}\/\d{2}\/\d{2}$/)) continue;
 
     const chips = {};
-    MEMBERS.forEach((name, i) => {
-      const c = row.c[COL_START + i];
-      if (c && c.v !== null && c.v !== '') {
-        const n = typeof c.v === 'number' ? c.v : Number(String(c.v).replace(/[,，　]/g,''));
+    MEMBERS.forEach((name, idx) => {
+      const raw = (cols[COL_START + idx] || '').replace(/"/g, '').trim();
+      if (raw !== '') {
+        const n = Number(raw.replace(/[,，　]/g, ''));
         if (!isNaN(n)) chips[name] = n;
       }
     });
 
     if (Object.keys(chips).length > 0) result.push({ date, chips });
-  });
+  }
 
   return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function splitCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur);
+  return result;
 }
 
 // ===================== After Load =====================
